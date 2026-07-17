@@ -76,28 +76,33 @@ async function fetchAlbumUrls(keyword: string): Promise<{ url: string; name: str
   let page = 1;
   const spinner = ora({ text: `Searching albums (page ${page})...`, color: "cyan" }).start();
 
-  while (true) {
-    const html = await fetchAlbumSearchPage(keyword, page);
-    const urls = extractAlbumLinks(html);
-    if (urls.length === 0) break;
+  try {
+    while (true) {
+      const html = await fetchAlbumSearchPage(keyword, page);
+      const urls = extractAlbumLinks(html);
+      if (urls.length === 0) break;
 
-    if (page > 1) {
-      const names = extractAlbumNames(html);
-      const keywordInNames = names.some((n) => n.includes(keyword));
-      if (!keywordInNames) break;
+      if (page > 1) {
+        const names = extractAlbumNames(html);
+        const keywordInNames = names.some((n) => n.includes(keyword));
+        if (!keywordInNames) break;
+      }
+
+      const $ = cheerio.load(html);
+      $("#list_albums_albums_list_search_result_items .item a[href*='/albums/']").each((_, el) => {
+        const href = $(el).attr("href");
+        const name = $(el).find("strong.title").text().trim();
+        if (href && name) results.push({ url: href, name });
+      });
+
+      page++;
+      if (results.length > 0) {
+        spinner.text = `Searching albums (page ${page}, ${results.length} found)...`;
+      }
     }
-
-    const $ = cheerio.load(html);
-    $("#list_albums_albums_list_search_result_items .item a[href*='/albums/']").each((_, el) => {
-      const href = $(el).attr("href");
-      const name = $(el).find("strong.title").text().trim();
-      if (href && name) results.push({ url: href, name });
-    });
-
-    page++;
-    if (results.length > 0) {
-      spinner.text = `Searching albums (page ${page}, ${results.length} found)...`;
-    }
+  } catch (e) {
+    spinner.fail(pc.red(`Album search failed: ${(e as Error).message}`));
+    return results;
   }
 
   spinner.succeed(pc.green(`Found ${results.length} albums`));
@@ -198,31 +203,36 @@ async function fetchVideoUrls(keyword: string): Promise<{ url: string; title: st
   let page = 1;
   const spinner = ora({ text: `Searching videos (page ${page})...`, color: "magenta" }).start();
 
-  while (true) {
-    const html = await fetchVideoSearchPage(keyword, page);
+  try {
+    while (true) {
+      const html = await fetchVideoSearchPage(keyword, page);
 
-    const $ = cheerio.load(html);
-    let found = false;
-    $("#list_videos_videos_list_search_result_items .item a[href*='/videos/']").each((_, el) => {
-      const href = $(el).attr("href");
-      const title = $(el).find("strong.title").text().trim();
-      if (href && title) {
-        results.push({ url: href, title });
-        found = true;
+      const $ = cheerio.load(html);
+      let found = false;
+      $("#list_videos_videos_list_search_result_items .item a[href*='/videos/']").each((_, el) => {
+        const href = $(el).attr("href");
+        const title = $(el).find("strong.title").text().trim();
+        if (href && title) {
+          results.push({ url: href, title });
+          found = true;
+        }
+      });
+
+      if (!found) break;
+
+      if (page > 1) {
+        const keywordInNames = results.slice(-10).some((r) => r.title.includes(keyword));
+        if (!keywordInNames) break;
       }
-    });
 
-    if (!found) break;
-
-    if (page > 1) {
-      const keywordInNames = results.slice(-10).some((r) => r.title.includes(keyword));
-      if (!keywordInNames) break;
+      page++;
+      if (results.length > 0) {
+        spinner.text = `Searching videos (page ${page}, ${results.length} found)...`;
+      }
     }
-
-    page++;
-    if (results.length > 0) {
-      spinner.text = `Searching videos (page ${page}, ${results.length} found)...`;
-    }
+  } catch (e) {
+    spinner.fail(pc.red(`Video search failed: ${(e as Error).message}`));
+    return results;
   }
 
   spinner.succeed(pc.magenta(`Found ${results.length} videos`));
@@ -338,10 +348,8 @@ function printTable(items: { title: string; url: string }[], type: string): void
 async function cmdSearch(keyword: string): Promise<void> {
   console.log(`\n  ${pc.bold(pc.cyan("xasiat-downloader"))} ${pc.dim("— search results")}\n`);
 
-  const [albums, videos] = await Promise.all([
-    fetchAlbumUrls(keyword).catch(() => [] as { url: string; name: string }[]),
-    fetchVideoUrls(keyword).catch(() => [] as { url: string; title: string }[]),
-  ]);
+  const albums = await fetchAlbumUrls(keyword);
+  const videos = await fetchVideoUrls(keyword);
 
   console.log(`\n  ${pc.bold(pc.blue(`Albums (${albums.length})`))}`);
   printTable(albums.map((a) => ({ title: a.name, url: a.url })), "albums");
