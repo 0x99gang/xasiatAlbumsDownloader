@@ -80,26 +80,22 @@ async function fetchAlbumUrls(keyword: string): Promise<{ url: string; name: str
   try {
     while (true) {
       const html = await fetchAlbumSearchPage(keyword, page);
-      const urls = extractAlbumLinks(html);
-      if (urls.length === 0) break;
-
-      if (page > 1) {
-        const names = extractAlbumNames(html);
-        const keywordInNames = names.some((n) => n.includes(keyword));
-        if (!keywordInNames) break;
-      }
 
       const $ = cheerio.load(html);
+      let pageHadMatch = false;
       $("#list_albums_albums_list_search_result_items .item a[href*='/albums/']").each((_, el) => {
         const href = $(el).attr("href");
         const name = $(el).find("strong.title").text().trim();
-        if (href && name) results.push({ url: href, name });
+        if (href && name && name.includes(keyword)) {
+          results.push({ url: href, name });
+          pageHadMatch = true;
+        }
       });
 
+      if (!pageHadMatch) break;
+
       page++;
-      if (results.length > 0) {
-        spinner.text = `Searching albums (page ${page}, ${results.length} found)...`;
-      }
+      spinner.text = `Searching albums (page ${page}, ${results.length} found)...`;
     }
   } catch (e) {
     spinner.fail(pc.red(`Album search failed: ${(e as Error).message}`));
@@ -209,27 +205,20 @@ async function fetchVideoUrls(keyword: string): Promise<{ url: string; title: st
       const html = await fetchVideoSearchPage(keyword, page);
 
       const $ = cheerio.load(html);
-      let found = false;
+      let pageHadMatch = false;
       $("#list_videos_videos_list_search_result_items .item a[href*='/videos/']").each((_, el) => {
         const href = $(el).attr("href");
         const title = $(el).find("strong.title").text().trim();
-        if (href && title) {
+        if (href && title && title.includes(keyword)) {
           results.push({ url: href, title });
-          found = true;
+          pageHadMatch = true;
         }
       });
 
-      if (!found) break;
-
-      if (page > 1) {
-        const keywordInNames = results.slice(-10).some((r) => r.title.includes(keyword));
-        if (!keywordInNames) break;
-      }
+      if (!pageHadMatch) break;
 
       page++;
-      if (results.length > 0) {
-        spinner.text = `Searching videos (page ${page}, ${results.length} found)...`;
-      }
+      spinner.text = `Searching videos (page ${page}, ${results.length} found)...`;
     }
   } catch (e) {
     spinner.fail(pc.red(`Video search failed: ${(e as Error).message}`));
