@@ -7,6 +7,7 @@ import { Readable } from "stream";
 import pc from "picocolors";
 import ora from "ora";
 import cliProgress from "cli-progress";
+import Table from "cli-table3";
 
 const BASE_URL = "https://www.xasiat.com";
 const ALBUM_BLOCK_ID = "list_albums_albums_list_search_result";
@@ -330,17 +331,25 @@ function printTable(items: { title: string; url: string }[], type: string): void
     console.log(`  ${pc.yellow(`No ${type} found.`)}`);
     return;
   }
-  const cols = 72;
-  const sep = pc.dim(`  ${"".padEnd(cols, "-")}`);
-  console.log(sep);
+  const table = new Table({
+    style: { "padding-left": 1, "padding-right": 1, head: [], border: ["dim"] },
+    chars: {
+      top: "\u2500", "top-mid": "\u252C", "top-left": "\u250C", "top-right": "\u2510",
+      bottom: "\u2500", "bottom-mid": "\u2534", "bottom-left": "\u2514", "bottom-right": "\u2518",
+      left: "\u2502", "left-mid": "\u251C", mid: "\u2500", "mid-mid": "\u253C",
+      right: "\u2502", "right-mid": "\u2524", middle: "\u2502",
+    },
+    head: [pc.cyan("#"), pc.cyan("Title"), pc.cyan("URL")],
+    colWidths: [5, 56, 40],
+  });
   for (let i = 0; i < items.length; i++) {
-    const num = pc.cyan(`${i + 1}.`);
-    const title = items[i].title.length > cols - 8 ? items[i].title.substring(0, cols - 11) + "..." : items[i].title;
-    console.log(`  ${num.padEnd(4)} ${pc.white(title)}`);
-    const url = items[i].url.length > cols - 6 ? items[i].url.substring(0, cols - 9) + "..." : items[i].url;
-    console.log(`       ${pc.dim(url)}`);
-    console.log(sep);
+    const maxW = 56 - 2;
+    const title = items[i].title.length > maxW ? items[i].title.substring(0, maxW - 1) + "\u2026" : items[i].title;
+    const maxUrl = 40 - 2;
+    const url = items[i].url.length > maxUrl ? items[i].url.substring(0, maxUrl - 1) + "\u2026" : items[i].url;
+    table.push([pc.dim(String(i + 1)), title, pc.dim(url)]);
   }
+  console.log(`  ${table.toString().replace(/\n/g, "\n  ")}`);
 }
 
 // ── Commands ───────────────────────────────────────────────
