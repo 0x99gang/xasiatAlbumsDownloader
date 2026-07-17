@@ -9,6 +9,26 @@ import ora from "ora";
 import cliProgress from "cli-progress";
 import Table from "cli-table3";
 
+function displayWidth(s: string): number {
+  let w = 0;
+  for (const ch of s) {
+    const cp = ch.codePointAt(0)!;
+    if (cp >= 0x1100 && (cp <= 0x115f || cp === 0x2329 || cp === 0x232a ||
+        (cp >= 0x2e80 && cp <= 0x303e) || (cp >= 0x3040 && cp <= 0x33bf) ||
+        (cp >= 0x3400 && cp <= 0x4db5) || (cp >= 0x4e00 && cp <= 0xa4cf) ||
+        (cp >= 0xac00 && cp <= 0xd7a3) || (cp >= 0xd800 && cp <= 0xdfff) ||
+        (cp >= 0xf900 && cp <= 0xfaff) || (cp >= 0xfe30 && cp <= 0xfe6f) ||
+        (cp >= 0xff01 && cp <= 0xff60) || (cp >= 0xffe0 && cp <= 0xffe6) ||
+        (cp >= 0x1b000 && cp <= 0x1b0ff) || (cp >= 0x1d000 && cp <= 0x1d0ff) ||
+        (cp >= 0x20000 && cp <= 0x2ffff))) {
+      w += 2;
+    } else {
+      w += 1;
+    }
+  }
+  return w;
+}
+
 const BASE_URL = "https://www.xasiat.com";
 const ALBUM_BLOCK_ID = "list_albums_albums_list_search_result";
 const VIDEO_BLOCK_ID = "list_videos_videos_list_search_result";
@@ -332,10 +352,26 @@ function printTable(items: { title: string; url: string }[], type: string): void
     colWidths: [5, 56, 40],
   });
   for (let i = 0; i < items.length; i++) {
-    const maxW = 56 - 2;
-    const title = items[i].title.length > maxW ? items[i].title.substring(0, maxW - 1) + "\u2026" : items[i].title;
     const maxUrl = 40 - 2;
     const url = items[i].url.length > maxUrl ? items[i].url.substring(0, maxUrl - 1) + "\u2026" : items[i].url;
+    const titleCol = 56 - 2;
+    let title = items[i].title;
+    if (displayWidth(title) > titleCol) {
+      let cut = 0;
+      for (let w = 0, j = 0; j < title.length; j++) {
+        const ch = title[j];
+        const cw = displayWidth(ch);
+        if (w + cw > titleCol) break;
+        w += cw;
+        cut = j + 1;
+      }
+      const sp = title.lastIndexOf(" ", cut);
+      if (sp > cut * 0.4) {
+        title = title.substring(0, sp) + "\n" + title.substring(sp + 1);
+      } else {
+        title = title.substring(0, cut) + "\n" + title.substring(cut);
+      }
+    }
     table.push([pc.dim(String(i + 1)), title, pc.dim(url)]);
   }
   console.log(`  ${table.toString().replace(/\n/g, "\n  ")}`);
